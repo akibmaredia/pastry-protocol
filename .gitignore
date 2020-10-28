@@ -1,2 +1,4 @@
 
 .ionide/*
+src/bin/*
+src/obj/*

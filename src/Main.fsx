@@ -16,5 +16,5 @@ let main (numberOfNodes, numberOfRequests) =
 // Read command line inputs and pass on to the driver function
 match fsi.CommandLineArgs with
     | [|_; numberOfNodes; numberOfRequests|] -> 
-        main ((Utils.strToInt numberOfNodes), (Utils.strToInt numberOfNodes))
+        main ((Utils.strToInt numberOfNodes), (Utils.strToInt numberOfRequests))
     | _ -> printfn "Error: Invalid Arguments"

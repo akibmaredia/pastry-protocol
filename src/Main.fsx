@@ -17,7 +17,7 @@ let isValidInput (numberOfNodes, numberOfRequests) =
 
 let system = ActorSystem.Create "System"
 
-let bVal = 4
+let baseVal = 4
 
 let PastryNode (mailbox: Actor<_>) = 
     let mutable id: int = 0
@@ -25,19 +25,56 @@ let PastryNode (mailbox: Actor<_>) =
     let mutable numberOfRequests: int = 0
     let mutable maxRows: int = 0
 
-    let mutable table = Array2D.zeroCreate<int> 1 1
+    let leafSetSmaller = new List<int>()
+    let leafSetLarger = new List<int>()
+    
+    let mutable routingTable = Array2D.zeroCreate<int> 1 1
 
-    let initTable () = 
+    let initRoutingTable() = 
         let initRow (row: int) = 
-            [0 .. (bVal - 1)]
-            |> List.iter (fun col ->    table.[row, col] <- -1)
+            [0 .. (baseVal - 1)]
+            |> List.iter (fun col ->    routingTable.[row, col] <- -1)
             |> ignore
         
-        table <- Array2D.zeroCreate<int> maxRows bVal
+        routingTable <- Array2D.zeroCreate<int> maxRows baseVal
 
         [0 .. (maxRows - 1)]
-        |> List.iter(fun row ->     initRow (row))
+        |> List.iter(fun row -> initRow (row))
         |> ignore
+
+    let updateLeafSet(nodes: List<int>) = 
+        for i in nodes do
+            if (i > id && not (leafSetLarger.Contains(i))) then
+                if (leafSetLarger.Count < baseVal) then
+                    leafSetLarger.Add(i)
+                else
+                    let max = leafSetLarger |> Seq.max
+                    if (i < max) then
+                        leafSetLarger.Remove(max) |> ignore
+                        leafSetLarger.Add(i)
+            elif (i < id && not (leafSetSmaller.Contains(i))) then
+                if (leafSetSmaller.Count < baseVal) then
+                    leafSetSmaller.Add(i)
+                else 
+                    let min = leafSetSmaller |> Seq.min
+                    if (i > min) then
+                        leafSetSmaller.Remove(min) |> ignore
+                        leafSetSmaller.Add(i)
+            else ()
+
+    let getFirstNonMatchingIndex(s1: string, s2: string) = 
+        let len = String.length s1
+        let mutable i = 0
+        while i < len && s1.[i] = s2.[i] do
+            i <- i + 1
+        i
+
+    let updateSamePrefixTableEntries(idInBaseVal: string, nodes: List<int>) = 
+        for i in nodes do
+            let iInBaseVal = Utils.numToBase(i, maxRows, baseVal)
+            let index = getFirstNonMatchingIndex(idInBaseVal, iInBaseVal)
+            if (routingTable.[index, (iInBaseVal.[index] |> string |> int)] = -1) then
+                routingTable.[index, (iInBaseVal.[index] |> string |> int)] <- i
 
     let rec loop() = actor {
         let! message = mailbox.Receive()
@@ -49,9 +86,24 @@ let PastryNode (mailbox: Actor<_>) =
                 numberOfRequests <- initMessage.NumberOfRequests
                 maxRows <- initMessage.MaxRows
 
-                initTable()
+                initRoutingTable()
             | MessageType.AddFirstNode addFirstNodeMessage -> 
-                printfn "%A" addFirstNodeMessage
+                addFirstNodeMessage.NodeGroup.Remove(id) |> ignore
+
+                updateLeafSet(addFirstNodeMessage.NodeGroup)
+                
+                let idInBaseVal = Utils.numToBase(id, maxRows, baseVal)
+                
+                updateSamePrefixTableEntries(idInBaseVal, addFirstNodeMessage.NodeGroup)
+
+                let col(row: int) = 
+                    idInBaseVal.[row] |> string |> int
+
+                [0 .. (maxRows - 1)]
+                |> List.iter(fun row -> routingTable.[row, col(row)] <- id)
+                |> ignore
+
+                mailbox.Sender() <! MessageType.JoinFinish
             | MessageType.Task taskInfo -> 
                 printfn "%A" taskInfo
             | _ -> ()
@@ -127,8 +179,8 @@ let Supervisor (mailbox: Actor<_>) =
                 totalNumberOfNodes <- initMessage.NumberOfNodes
                 numberOfRequests <- initMessage.NumberOfRequests
 
-                maxRows <- (ceil ((Utils.logOf initMessage.NumberOfNodes) / (Utils.logOf bVal))) |> int
-                maxNodes <- Utils.powOf (bVal, maxRows) |> int
+                maxRows <- (ceil ((Utils.logOf initMessage.NumberOfNodes) / (Utils.logOf baseVal))) |> int
+                maxNodes <- Utils.powOf (baseVal, maxRows) |> int
 
                 initNodeList()
 
@@ -180,7 +232,7 @@ let Supervisor (mailbox: Actor<_>) =
 let main (numberOfNodes, numberOfRequests) = 
     if not (isValidInput (numberOfNodes, numberOfRequests)) then
         printfn "Error: Invalid Input"
-    else 
+    else
         let supervisor = spawn system "Supervisor" Supervisor
 
         let initMessage: MessageType.InitSupervisor = {

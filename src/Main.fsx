@@ -17,13 +17,39 @@ let isValidInput (numberOfNodes, numberOfRequests) =
 
 let system = ActorSystem.Create "System"
 
+let bVal = 4
+
 let PastryNode (mailbox: Actor<_>) = 
+    let mutable id: int = 0
+    let mutable numberOfNodes: int = 0
+    let mutable numberOfRequests: int = 0
+    let mutable maxRows: int = 0
+
+    let mutable table = Array2D.zeroCreate<int> 1 1
+
+    let initTable () = 
+        let initRow (row: int) = 
+            [0 .. (bVal - 1)]
+            |> List.iter (fun col ->    table.[row, col] <- -1)
+            |> ignore
+        
+        table <- Array2D.zeroCreate<int> maxRows bVal
+
+        [0 .. (maxRows - 1)]
+        |> List.iter(fun row ->     initRow (row))
+        |> ignore
+
     let rec loop() = actor {
         let! message = mailbox.Receive()
         
         match message with
             | MessageType.InitPastryNode initMessage -> 
-                printfn "---\n %A ---\n" initMessage
+                id <- initMessage.Id
+                numberOfNodes <- initMessage.NumberOfNodes
+                numberOfRequests <- initMessage.NumberOfRequests
+                maxRows <- initMessage.MaxRows
+
+                initTable()
             | MessageType.AddFirstNode addFirstNodeMessage -> 
                 printfn "%A" addFirstNodeMessage
             | MessageType.Task taskInfo -> 
@@ -38,8 +64,6 @@ let Supervisor (mailbox: Actor<_>) =
     let mutable totalNumberOfNodes: int = 0
     let mutable numberOfRequests: int = 0
     
-    let mutable itr: int = 0
-
     let mutable numberOfNodesJoined: int = 0
     let mutable numberOfNodesRouted: int = 0
     let mutable numberOfRouteNotFound: int = 0
@@ -66,14 +90,14 @@ let Supervisor (mailbox: Actor<_>) =
                                     nodeList.[j] <- temp)
             |> ignore
         
-        [0 .. maxNodes]
+        [0 .. (maxNodes - 1)]
         |> List.iter(fun i ->   nodeList.Add(i))
         |> ignore
         
         shuffle ()
 
     let initPastryNodes (numberOfNodes, numberOfRequests) = 
-        [0 .. numberOfNodes]
+        [0 .. (numberOfNodes - 1)]
         |> List.iter (fun i ->  let name = "PastryNode" + (i |> string)
                                 let node = spawn system name PastryNode
                                 let initMessage: MessageType.InitPastryNode = {
@@ -103,8 +127,8 @@ let Supervisor (mailbox: Actor<_>) =
                 totalNumberOfNodes <- initMessage.NumberOfNodes
                 numberOfRequests <- initMessage.NumberOfRequests
 
-                maxRows <- (ceil ((Utils.logOf initMessage.NumberOfNodes) / (Utils.logOf 4))) |> int
-                maxNodes <- Utils.powOf (4, maxRows) |> int
+                maxRows <- (ceil ((Utils.logOf initMessage.NumberOfNodes) / (Utils.logOf bVal))) |> int
+                maxNodes <- Utils.powOf (bVal, maxRows) |> int
 
                 initNodeList()
 

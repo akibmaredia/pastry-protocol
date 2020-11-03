@@ -26,8 +26,9 @@ let PastryNode (mailbox: Actor<_>) =
                 printfn "---\n %A ---\n" initMessage
             | MessageType.AddFirstNode addFirstNodeMessage -> 
                 printfn "%A" addFirstNodeMessage
-            | _ -> 
-                printfn "I'm the PastryNode!"
+            | MessageType.Task taskInfo -> 
+                printfn "%A" taskInfo
+            | _ -> ()
         
         return! loop()
     }
@@ -51,6 +52,8 @@ let Supervisor (mailbox: Actor<_>) =
 
     let nodeList = new List<int>()
     let groupOne = new List<int>()
+
+    let mutable systemRef = null
 
     let initNodeList () = 
         let random = Random()
@@ -95,6 +98,8 @@ let Supervisor (mailbox: Actor<_>) =
 
         match message with 
             | MessageType.InitSupervisor initMessage -> 
+                systemRef <- mailbox.Sender()
+
                 totalNumberOfNodes <- initMessage.NumberOfNodes
                 numberOfRequests <- initMessage.NumberOfRequests
 
@@ -111,14 +116,37 @@ let Supervisor (mailbox: Actor<_>) =
             | MessageType.JoinFinish -> 
                 numberOfNodesJoined <- numberOfNodesJoined + 1
                 if (numberOfNodesJoined = totalNumberOfNodes) then
-                    mailbox.Self <! StartRouting
+                    mailbox.Self <! MessageType.StartRouting
                 else
-                    mailbox.Self <! JoinNodesInDT
+                    mailbox.Self <! MessageType.JoinNodesInDT
             | MessageType.JoinNodesInDT -> 
-                printfn "join nodes in dt"
+                let nodeId = nodeList.[Random().Next(numberOfNodesJoined)]
+                let nodeName = "/user/PastryNode" + (nodeId |> string)
+                let node = select nodeName system
+                let taskInfo: MessageType.Task = {
+                    Message = "Join";
+                    FromNodeId = nodeId;
+                    ToNodeId = nodeList.[numberOfNodesJoined];
+                    HopCount = -1;
+                }
+                node <! MessageType.Task taskInfo
             | MessageType.StartRouting -> 
-                printfn "start routing"
-            | _ -> printfn "I'm the Supervisor"
+                (select "/user/PastryNode*" system) <! MessageType.StartRouting
+            | MessageType.FinishRoute finishRouteMessage -> 
+                numberOfNodesRouted <- numberOfNodesRouted + 1
+                numberOfHops <- numberOfHops + 1
+                if (numberOfNodesRouted >= totalNumberOfNodes * numberOfRequests) then
+                    let message = "Routing Finished!" + 
+                                    "\nTotal Number of Routes: " + (numberOfNodesRouted |> string) + 
+                                    "\nTotal Number of Hops: " + (numberOfHops |> string) + 
+                                    "\nAverage Number of Hops per Route: " + 
+                                    ((Utils.toDouble numberOfHops / Utils.toDouble numberOfNodesRouted) |> string)
+                    systemRef <! message
+            | MessageType.NodeNotFound -> 
+                numberOfNodesNotInBoth <- numberOfNodesNotInBoth + 1
+            | MessageType.RouteNodeNotFound -> 
+                numberOfRouteNotFound <- numberOfRouteNotFound + 1
+            | _ -> ()
         
         return! loop()
     }
@@ -136,9 +164,10 @@ let main (numberOfNodes, numberOfRequests) =
             NumberOfRequests = numberOfRequests;
         }
 
-        Async.RunSynchronously(supervisor <? MessageType.InitSupervisor initMessage) |> ignore
+        let response = Async.RunSynchronously(supervisor <? MessageType.InitSupervisor initMessage)
+        printfn "%A" response
 
-        printfn "Done!"
+        system.Terminate() |> ignore
 
 // Read command line inputs and pass on to the driver function
 match fsi.CommandLineArgs with

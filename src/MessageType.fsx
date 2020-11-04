@@ -8,6 +8,12 @@ module MessageType =
         NumberOfRequests: int;
     }
 
+    type InitSupervisorWithFailure = {
+        NumberOfNodes: int;
+        NumberOfRequests: int;
+        NumberOfFailureNodes: int;
+    }
+
     type InitPastryNode = {
         Id: int;
         MaxRows: int;
@@ -41,10 +47,28 @@ module MessageType =
     }
 
     type RoutingInfo = {
+        NodeCount: int;
         RequestCount: int;
     }
 
+    type RemoveNodeInfo = {
+        NodeId: int;
+    }
+
+    type RoutingTableInfo = {
+        Row: int;
+        Col: int;
+        Val: int;
+    }
+
+    type RecoverLeafNodeInfo = {
+        NodeList: List<int>;
+        DeadNodeId: int;
+    }
+
     type MessageType = 
+        | InitSupervisorWithFailure of InitSupervisorWithFailure
+        | CreateFailures
         | InitSupervisor of InitSupervisor
         | JoinFinish
         | JoinNodesInDT
@@ -61,4 +85,10 @@ module MessageType =
         | UpdateNeighborSet of NeighborInfo
         | SendAckToSupervisor of AckInfo
         | Ack
+        | Die
+        | RemoveNodeDetails of RemoveNodeInfo
+        | RemoveNodeDetails2 of RemoveNodeInfo
+        | CheckRoutingTable of RoutingTableInfo
+        | RecoverRoutingTable of RoutingTableInfo
+        | RecoverLeafNodes of RecoverLeafNodeInfo
         

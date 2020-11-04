@@ -5,6 +5,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="Main.fsx"/>
+    <Compile Include="Bonus.fsx"/>
     <Compile Include="Utils.fsx"/>
     <Compile Include="MessageType.fsx"/>
   </ItemGroup>

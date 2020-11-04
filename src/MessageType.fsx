@@ -47,7 +47,7 @@ module MessageType =
         | StartRouting
         | FinishRoute of FinishRoute
         | NodeNotFound
-        | RouteNodeNotFound
+        | RouteToNodeNotFound
         | InitPastryNode of InitPastryNode
         | AddFirstNode of AddFirstNode
         | JoinTask of Task

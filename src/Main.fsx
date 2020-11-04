@@ -183,7 +183,73 @@ let PastryNode (mailbox: Actor<_>) =
                     (select nodeName system) <! MessageType.JoinTask nextTaskInfo
                 else ()
             | MessageType.RouteTask taskInfo -> 
-                printfn "%A" taskInfo
+                if (taskInfo.ToNodeId = id) then
+                    let finishInfo: MessageType.FinishRoute = {
+                        FromNodeId = taskInfo.FromNodeId;
+                        ToNodeId = taskInfo.ToNodeId;
+                        NumberOfHops = taskInfo.HopCount + 1;
+                    }
+                    supervisor <! MessageType.FinishRoute finishInfo
+                else
+                    let nextTaskInfo: MessageType.Task = {
+                        FromNodeId = taskInfo.FromNodeId;
+                        ToNodeId = taskInfo.ToNodeId;
+                        HopCount = taskInfo.HopCount + 1;
+                    }
+
+                    let idInBaseVal = Utils.numToBase(id, maxRows, baseVal)
+                    let toIdInBaseVal = Utils.numToBase(taskInfo.ToNodeId, maxRows, baseVal)
+                    let nonMatchingIndex = getFirstNonMatchingIndex(idInBaseVal, toIdInBaseVal)
+                    if ((leafSetSmaller.Count > 0 && taskInfo.ToNodeId >= (leafSetSmaller |> Seq.min) && taskInfo.ToNodeId < id) || 
+                        (leafSetLarger.Count > 0 && taskInfo.ToNodeId <= (leafSetLarger |> Seq.max) && taskInfo.ToNodeId > id)) then
+                        let mutable diff = idSpace + 10
+                        let mutable nearest = -1
+                        if (taskInfo.ToNodeId < id) then
+                            for node in leafSetSmaller do
+                                if (abs (taskInfo.ToNodeId - node) < diff) then
+                                    nearest <- node
+                                    diff <- abs (taskInfo.ToNodeId - node)
+                        else
+                            for node in leafSetLarger do
+                                if (abs (taskInfo.ToNodeId - node) < diff) then
+                                    nearest <- node
+                                    diff <- abs (taskInfo.ToNodeId - node)
+
+                        if (abs (taskInfo.ToNodeId - id) > diff) then
+                            let nodeName = "/user/PastryNode" + (nearest |> string)
+                            (select nodeName system) <! MessageType.RouteTask nextTaskInfo
+                        else
+                            let finishInfo: MessageType.FinishRoute = {
+                                FromNodeId = taskInfo.FromNodeId;
+                                ToNodeId = taskInfo.ToNodeId;
+                                NumberOfHops = taskInfo.HopCount + 1
+                            }
+                            supervisor <! MessageType.FinishRoute finishInfo
+                    else if (leafSetSmaller.Count > 0 && leafSetSmaller.Count < baseVal && taskInfo.ToNodeId < (leafSetSmaller |> Seq.min)) then
+                        let nodeName = "/user/PastryNode" + ((leafSetSmaller |> Seq.min) |> string)
+                        (select nodeName system) <! MessageType.RouteTask nextTaskInfo
+                    else if (leafSetLarger.Count > 0 && leafSetLarger.Count < baseVal && taskInfo.ToNodeId > (leafSetLarger |> Seq.max)) then
+                        let nodeName = "/user/PastryNode" + ((leafSetLarger |> Seq.max) |> string)
+                        (select nodeName system) <! MessageType.RouteTask nextTaskInfo
+                    else if ((leafSetSmaller.Count = 0 && taskInfo.ToNodeId < id) || (leafSetLarger.Count = 0 && taskInfo.ToNodeId > id)) then
+                        let finishInfo: MessageType.FinishRoute = {
+                            FromNodeId = taskInfo.FromNodeId;
+                            ToNodeId = taskInfo.ToNodeId;
+                            NumberOfHops = taskInfo.HopCount + 1
+                        }
+                        supervisor <! MessageType.FinishRoute finishInfo
+                    else if (routingTable.[nonMatchingIndex, (toIdInBaseVal.[nonMatchingIndex] |> string |> int)] <> -1) then
+                        let nodeName = "/user/PastryNode" + ((routingTable.[nonMatchingIndex, (toIdInBaseVal.[nonMatchingIndex] |> string |> int)]) |> string)
+                        (select nodeName system) <! MessageType.RouteTask nextTaskInfo
+                    else if (taskInfo.ToNodeId > id) then
+                        let nodeName = "/user/PastryNode" + ((leafSetLarger |> Seq.max) |> string)
+                        (select nodeName system) <! MessageType.RouteTask nextTaskInfo
+                        supervisor <! MessageType.RouteToNodeNotFound
+                    else if (taskInfo.ToNodeId < id) then
+                        let nodeName = "/user/PastryNode" + ((leafSetSmaller |> Seq.min) |> string)
+                        (select nodeName system) <! MessageType.RouteTask nextTaskInfo
+                        supervisor <! MessageType.RouteToNodeNotFound
+                    else ()
             | MessageType.UpdateRow rowInfo -> 
                 let updateRoutingTableEntry (row, col, value) = 
                     if (routingTable.[row, col] = -1) then
@@ -346,7 +412,7 @@ let Supervisor (mailbox: Actor<_>) =
                     systemRef <! message
             | MessageType.NodeNotFound -> 
                 numberOfNodesNotInBoth <- numberOfNodesNotInBoth + 1
-            | MessageType.RouteNodeNotFound -> 
+            | MessageType.RouteToNodeNotFound -> 
                 numberOfRouteNotFound <- numberOfRouteNotFound + 1
             | _ -> ()
         

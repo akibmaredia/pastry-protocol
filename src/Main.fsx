@@ -183,13 +183,9 @@ let PastryNode (mailbox: Actor<_>) =
                     (select nodeName system) <! MessageType.JoinTask nextTaskInfo
                 else ()
             | MessageType.RouteTask taskInfo -> 
+                // printfn "%d, %d" taskInfo.ToNodeId id
                 if (taskInfo.ToNodeId = id) then
-                    let finishInfo: MessageType.FinishRoute = {
-                        FromNodeId = taskInfo.FromNodeId;
-                        ToNodeId = taskInfo.ToNodeId;
-                        NumberOfHops = taskInfo.HopCount + 1;
-                    }
-                    supervisor <! MessageType.FinishRoute finishInfo
+                    supervisor <! MessageType.FinishRoute { NumberOfHops = taskInfo.HopCount + 1; }
                 else
                     let nextTaskInfo: MessageType.Task = {
                         FromNodeId = taskInfo.FromNodeId;
@@ -219,12 +215,7 @@ let PastryNode (mailbox: Actor<_>) =
                             let nodeName = "/user/PastryNode" + (nearest |> string)
                             (select nodeName system) <! MessageType.RouteTask nextTaskInfo
                         else
-                            let finishInfo: MessageType.FinishRoute = {
-                                FromNodeId = taskInfo.FromNodeId;
-                                ToNodeId = taskInfo.ToNodeId;
-                                NumberOfHops = taskInfo.HopCount + 1
-                            }
-                            supervisor <! MessageType.FinishRoute finishInfo
+                            supervisor <! MessageType.FinishRoute { NumberOfHops = taskInfo.HopCount + 1; }
                     else if (leafSetSmaller.Count > 0 && leafSetSmaller.Count < baseVal && taskInfo.ToNodeId < (leafSetSmaller |> Seq.min)) then
                         let nodeName = "/user/PastryNode" + ((leafSetSmaller |> Seq.min) |> string)
                         (select nodeName system) <! MessageType.RouteTask nextTaskInfo
@@ -232,12 +223,7 @@ let PastryNode (mailbox: Actor<_>) =
                         let nodeName = "/user/PastryNode" + ((leafSetLarger |> Seq.max) |> string)
                         (select nodeName system) <! MessageType.RouteTask nextTaskInfo
                     else if ((leafSetSmaller.Count = 0 && taskInfo.ToNodeId < id) || (leafSetLarger.Count = 0 && taskInfo.ToNodeId > id)) then
-                        let finishInfo: MessageType.FinishRoute = {
-                            FromNodeId = taskInfo.FromNodeId;
-                            ToNodeId = taskInfo.ToNodeId;
-                            NumberOfHops = taskInfo.HopCount + 1
-                        }
-                        supervisor <! MessageType.FinishRoute finishInfo
+                        supervisor <! MessageType.FinishRoute { NumberOfHops = taskInfo.HopCount + 1; }
                     else if (routingTable.[nonMatchingIndex, (toIdInBaseVal.[nonMatchingIndex] |> string |> int)] <> -1) then
                         let nodeName = "/user/PastryNode" + ((routingTable.[nonMatchingIndex, (toIdInBaseVal.[nonMatchingIndex] |> string |> int)]) |> string)
                         (select nodeName system) <! MessageType.RouteTask nextTaskInfo

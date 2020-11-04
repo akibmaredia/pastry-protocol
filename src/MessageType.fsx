@@ -20,8 +20,6 @@ module MessageType =
     }
 
     type FinishRoute = {
-        FromNodeId: int;
-        ToNodeId: int;
         NumberOfHops: int;
     }
 

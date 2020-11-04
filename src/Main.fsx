@@ -24,8 +24,6 @@ let baseVal = 4
 
 let PastryNode (mailbox: Actor<_>) = 
     let mutable id: int = 0
-    let mutable numberOfNodes: int = 0
-    let mutable numberOfRequests: int = 0
     let mutable maxRows: int = 0
 
     let leafSetSmaller = new List<int>()
@@ -71,8 +69,7 @@ let PastryNode (mailbox: Actor<_>) =
     let getFirstNonMatchingIndex(s1: string, s2: string) = 
         let len = String.length s1
         let mutable index = 0
-        while index < len && s1.[index] = s2.[index] do
-            index <- index + 1
+        while index < len && s1.[index] = s2.[index] do index <- index + 1
         index
 
     let updateSamePrefixTableEntries(idInBaseVal: string, nodes: List<int>) = 
@@ -88,8 +85,6 @@ let PastryNode (mailbox: Actor<_>) =
         match message with
             | MessageType.InitPastryNode initMessage -> 
                 id <- initMessage.Id
-                numberOfNodes <- initMessage.NumberOfNodes
-                numberOfRequests <- initMessage.NumberOfRequests
                 maxRows <- initMessage.MaxRows
                 idSpace <- Utils.powOf(baseVal, maxRows) |> int
 
@@ -103,9 +98,7 @@ let PastryNode (mailbox: Actor<_>) =
                 
                 updateSamePrefixTableEntries(idInBaseVal, addFirstNodeMessage.NodeGroup)
 
-                let col(row: int) = 
-                    idInBaseVal.[row] |> string |> int
-
+                let col(row: int) = idInBaseVal.[row] |> string |> int
                 [0 .. (maxRows - 1)]
                 |> List.iter(fun row -> routingTable.[row, col(row)] <- id)
                 |> ignore
@@ -343,8 +336,6 @@ let Supervisor (mailbox: Actor<_>) =
                                 let node = spawn system name PastryNode
                                 let initMessage: MessageType.InitPastryNode = {
                                     Id = nodeList.[i];
-                                    NumberOfNodes = totalNumberOfNodes;
-                                    NumberOfRequests = numberOfRequests;
                                     MaxRows = maxRows;
                                 }
                                 node <! MessageType.InitPastryNode initMessage)

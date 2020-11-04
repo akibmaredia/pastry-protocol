@@ -10,8 +10,6 @@ module MessageType =
 
     type InitPastryNode = {
         Id: int;
-        NumberOfNodes: int;
-        NumberOfRequests: int;
         MaxRows: int;
     }
 

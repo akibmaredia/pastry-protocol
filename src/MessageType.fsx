@@ -40,6 +40,10 @@ module MessageType =
         NodeIdList: List<int>;
     }
 
+    type AckInfo = {
+        NewNodeId: int;
+    }
+
     type MessageType = 
         | InitSupervisor of InitSupervisor
         | JoinFinish
@@ -54,5 +58,6 @@ module MessageType =
         | RouteTask of Task
         | UpdateRow of RowInfo
         | UpdateNeighborSet of NeighborInfo
-        | SendAckToSupervisor
+        | SendAckToSupervisor of AckInfo
+        | Ack
         

@@ -268,30 +268,40 @@ let PastryNode (mailbox: Actor<_>) =
                 for node in leafSetSmaller do 
                     backCount <- backCount + 1
                     let nodeName = "/user/PastryNode" + (node |> string)
-                    (select nodeName system) <! MessageType.SendAckToSupervisor
+                    (select nodeName system) <! MessageType.SendAckToSupervisor { NewNodeId = id; }
 
                 for node in leafSetLarger do 
                     backCount <- backCount + 1
                     let nodeName = "/user/PastryNode" + (node |> string)
-                    (select nodeName system) <! MessageType.SendAckToSupervisor
+                    (select nodeName system) <! MessageType.SendAckToSupervisor { NewNodeId = id; }
                 
                 for i in [0 .. (maxRows - 1)] do
                     for j in [0 .. (baseVal - 1)] do
                         if (routingTable.[i, j] <> -1) then
                             backCount <- backCount + 1
                             let nodeName = "/user/PastryNode" + (routingTable.[i, j] |> string)
-                            (select nodeName system) <! MessageType.SendAckToSupervisor
+                            (select nodeName system) <! MessageType.SendAckToSupervisor { NewNodeId = id; }
 
                 let idInBaseVal = Utils.numToBase(id, maxRows, baseVal)
                 let col(row: int) = idInBaseVal.[row] |> string |> int
                 [0 .. (maxRows - 1)]
                 |> List.iter(fun row -> routingTable.[row, col(row)] <- id)
                 |> ignore
-            | MessageType.SendAckToSupervisor -> 
+            | MessageType.SendAckToSupervisor ackInfo -> 
+                let tempList = new List<int>()
+                tempList.Add(ackInfo.NewNodeId)
+                
+                updateLeafSet(tempList)
+
+                let idInBaseVal = Utils.numToBase(id, maxRows, baseVal)
+                updateSamePrefixTableEntries(idInBaseVal, tempList)
+
+                mailbox.Sender() <! MessageType.Ack
+            | MessageType.Ack -> 
                 backCount <- backCount - 1
                 if backCount = 0 then 
                     supervisor <! MessageType.JoinFinish
-            | MessageType.StartRouting ->
+            | MessageType.StartRouting -> 
                 Thread.Sleep(1000)
                 let taskInfo: MessageType.Task = {
                     FromNodeId = id;
@@ -341,13 +351,13 @@ let Supervisor (mailbox: Actor<_>) =
         
         shuffle ()
 
-    let initPastryNodes (numberOfNodes, numberOfRequests) = 
-        [0 .. (numberOfNodes - 1)]
+    let initPastryNodes () = 
+        [0 .. (totalNumberOfNodes - 1)]
         |> List.iter (fun i ->  let name = "PastryNode" + (nodeList.[i] |> string)
                                 let node = spawn system name PastryNode
                                 let initMessage: MessageType.InitPastryNode = {
                                     Id = nodeList.[i];
-                                    NumberOfNodes = numberOfNodes;
+                                    NumberOfNodes = totalNumberOfNodes;
                                     NumberOfRequests = numberOfRequests;
                                     MaxRows = maxRows;
                                 }
@@ -377,7 +387,7 @@ let Supervisor (mailbox: Actor<_>) =
 
                 groupOne.Add(nodeList.[0])
 
-                initPastryNodes(initMessage.NumberOfNodes, initMessage.NumberOfRequests)
+                initPastryNodes()
 
                 initPastryWork()
             | MessageType.JoinFinish -> 
@@ -401,6 +411,7 @@ let Supervisor (mailbox: Actor<_>) =
                 (select "/user/PastryNode*" system) <! MessageType.StartRouting
             | MessageType.FinishRoute finishRouteMessage -> 
                 numberOfNodesRouted <- numberOfNodesRouted + 1
+                printfn "Routing Count: %d" numberOfNodesRouted
                 numberOfHops <- numberOfHops + finishRouteMessage.NumberOfHops
                 if (numberOfNodesRouted >= totalNumberOfNodes * numberOfRequests) then
                     let message = "Routing Finished!" + 

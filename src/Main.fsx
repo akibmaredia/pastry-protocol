@@ -280,14 +280,15 @@ let PastryNode (mailbox: Actor<_>) =
                 backCount <- backCount - 1
                 if backCount = 0 then 
                     supervisor <! MessageType.JoinFinish
-            | MessageType.StartRouting -> 
-                Thread.Sleep(1000)
-                let taskInfo: MessageType.Task = {
-                    FromNodeId = id;
-                    ToNodeId = Random().Next(idSpace)
-                    HopCount = -1;
-                }
-                mailbox.Self <! MessageType.RouteTask taskInfo
+            | MessageType.StartRouting routingInfo -> 
+                for i in [1 .. routingInfo.RequestCount] do
+                    Thread.Sleep(200)
+                    let taskInfo: MessageType.Task = {
+                        FromNodeId = id;
+                        ToNodeId = Random().Next(idSpace)
+                        HopCount = -1;
+                    }
+                    mailbox.Self <! MessageType.RouteTask taskInfo
             | _ -> ()
         
         return! loop()
@@ -370,7 +371,7 @@ let Supervisor (mailbox: Actor<_>) =
             | MessageType.JoinFinish -> 
                 numberOfNodesJoined <- numberOfNodesJoined + 1
                 if (numberOfNodesJoined = totalNumberOfNodes) then
-                    mailbox.Self <! MessageType.StartRouting
+                    mailbox.Self <! MessageType.StartRoutingSupervisor
                 else
                     mailbox.Self <! MessageType.JoinNodesInDT
             | MessageType.JoinNodesInDT -> 
@@ -383,9 +384,9 @@ let Supervisor (mailbox: Actor<_>) =
                     HopCount = -1;
                 }
                 node <! MessageType.JoinTask taskInfo
-            | MessageType.StartRouting -> 
+            | MessageType.StartRoutingSupervisor -> 
                 printfn "Routing started!"
-                (select "/user/PastryNode*" system) <! MessageType.StartRouting
+                (select "/user/PastryNode*" system) <! MessageType.StartRouting { RequestCount = numberOfRequests; }
             | MessageType.FinishRoute finishRouteMessage -> 
                 numberOfNodesRouted <- numberOfNodesRouted + 1
                 printfn "Routing Count: %d" numberOfNodesRouted

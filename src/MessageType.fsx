@@ -40,11 +40,16 @@ module MessageType =
         NewNodeId: int;
     }
 
+    type RoutingInfo = {
+        RequestCount: int;
+    }
+
     type MessageType = 
         | InitSupervisor of InitSupervisor
         | JoinFinish
         | JoinNodesInDT
-        | StartRouting
+        | StartRouting of RoutingInfo
+        | StartRoutingSupervisor
         | FinishRoute of FinishRoute
         | NodeNotFound
         | RouteToNodeNotFound

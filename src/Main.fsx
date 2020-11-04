@@ -399,10 +399,11 @@ let Supervisor (mailbox: Actor<_>) =
                 }
                 node <! MessageType.JoinTask taskInfo
             | MessageType.StartRouting -> 
+                printfn "Routing started!"
                 (select "/user/PastryNode*" system) <! MessageType.StartRouting
             | MessageType.FinishRoute finishRouteMessage -> 
                 numberOfNodesRouted <- numberOfNodesRouted + 1
-                numberOfHops <- numberOfHops + 1
+                numberOfHops <- numberOfHops + finishRouteMessage.NumberOfHops
                 if (numberOfNodesRouted >= totalNumberOfNodes * numberOfRequests) then
                     let message = "Routing Finished!" + 
                                     "\nTotal Number of Routes: " + (numberOfNodesRouted |> string) + 

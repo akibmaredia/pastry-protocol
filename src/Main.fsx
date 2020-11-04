@@ -76,11 +76,11 @@ let PastryNode (mailbox: Actor<_>) =
         index
 
     let updateSamePrefixTableEntries(idInBaseVal: string, nodes: List<int>) = 
-        for i in nodes do
-            let iInBaseVal = Utils.numToBase(i, maxRows, baseVal)
+        for node in nodes do
+            let iInBaseVal = Utils.numToBase(node, maxRows, baseVal)
             let index = getFirstNonMatchingIndex(idInBaseVal, iInBaseVal)
             if (routingTable.[index, (iInBaseVal.[index] |> string |> int)] = -1) then
-                routingTable.[index, (iInBaseVal.[index] |> string |> int)] <- i
+                routingTable.[index, (iInBaseVal.[index] |> string |> int)] <- node
 
     let rec loop() = actor {
         let! message = mailbox.Receive()
@@ -277,7 +277,7 @@ let PastryNode (mailbox: Actor<_>) =
                 
                 for i in [0 .. (maxRows - 1)] do
                     for j in [0 .. (baseVal - 1)] do
-                        if (routingTable.[i, j] = -1) then
+                        if (routingTable.[i, j] <> -1) then
                             backCount <- backCount + 1
                             let nodeName = "/user/PastryNode" + (routingTable.[i, j] |> string)
                             (select nodeName system) <! MessageType.SendAckToSupervisor
@@ -343,7 +343,7 @@ let Supervisor (mailbox: Actor<_>) =
 
     let initPastryNodes (numberOfNodes, numberOfRequests) = 
         [0 .. (numberOfNodes - 1)]
-        |> List.iter (fun i ->  let name = "PastryNode" + (i |> string)
+        |> List.iter (fun i ->  let name = "PastryNode" + (nodeList.[i] |> string)
                                 let node = spawn system name PastryNode
                                 let initMessage: MessageType.InitPastryNode = {
                                     Id = nodeList.[i];
@@ -356,12 +356,10 @@ let Supervisor (mailbox: Actor<_>) =
 
     let initPastryWork () =
         let firstNodeName = "/user/PastryNode" + (nodeList.[0] |> string)
-        let firstNode = select firstNodeName system
         let addFirstNodeMessage: MessageType.AddFirstNode = {
             NodeGroup = new List<int>(groupOne);
         }
-        firstNode <! MessageType.AddFirstNode addFirstNodeMessage
-
+        (select firstNodeName system) <! MessageType.AddFirstNode addFirstNodeMessage
     let rec loop() = actor {
         let! message = mailbox.Receive()
 

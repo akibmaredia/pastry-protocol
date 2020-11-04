@@ -18,7 +18,7 @@ let isValidInput (numberOfNodes, numberOfRequests) =
 
 let system = ActorSystem.Create "System"
 
-let mutable supervisor = null
+let mutable supervisor: IActorRef = null
 
 let baseVal = 4
 
@@ -112,7 +112,76 @@ let PastryNode (mailbox: Actor<_>) =
 
                 mailbox.Sender() <! MessageType.JoinFinish
             | MessageType.JoinTask taskInfo -> 
-                printfn "%A" taskInfo
+                let sendUpdateRowMessage (index) = 
+                    let rowInfo: MessageType.RowInfo = {
+                        RowIndex = index;
+                        RowData = new List<int>(routingTable.[index, *]);
+                    }
+                    let nodeName = "/user/PastryNode" + (taskInfo.ToNodeId |> string)
+                    (select nodeName system) <! MessageType.UpdateRow rowInfo
+                
+                let idInBaseVal = Utils.numToBase(id, maxRows, baseVal)
+                let toIdInBaseVal = Utils.numToBase(taskInfo.ToNodeId, maxRows, baseVal)
+                let nonMatchingIndex = getFirstNonMatchingIndex(idInBaseVal, toIdInBaseVal)
+                if (taskInfo.HopCount = -1 && nonMatchingIndex > 0) then
+                    [0 .. (nonMatchingIndex - 1)]
+                    |> List.iter (fun i ->  sendUpdateRowMessage(i))
+                    |> ignore
+                sendUpdateRowMessage(nonMatchingIndex)
+
+                let sendUpdateNeighborMessage() = 
+                    let nodeSet = new List<int>()
+                    nodeSet.Add(id)
+                    for node in leafSetSmaller do nodeSet.Add(node)
+                    for node in leafSetLarger do nodeSet.Add(node)
+                    let nodeName = "/user/PastryNode" + (taskInfo.ToNodeId |> string)
+                    let neighborInfo: MessageType.NeighborInfo = { NodeIdList = nodeSet; }
+                    (select nodeName system) <! MessageType.UpdateNeighborSet neighborInfo
+
+                let nextTaskInfo: MessageType.Task = {
+                    FromNodeId = taskInfo.FromNodeId;
+                    ToNodeId = taskInfo.ToNodeId;
+                    HopCount = taskInfo.HopCount + 1;
+                }
+
+                if ((leafSetSmaller.Count > 0 && taskInfo.ToNodeId >= (leafSetSmaller |> Seq.min) && taskInfo.ToNodeId <= id) || 
+                    (leafSetLarger.Count > 0 && taskInfo.ToNodeId <= (leafSetLarger |> Seq.max) && taskInfo.ToNodeId >= id)) then
+                    let mutable diff = idSpace + 10
+                    let mutable nearest = -1
+                    if (taskInfo.ToNodeId < id) then
+                        for node in leafSetSmaller do
+                            if (abs (taskInfo.ToNodeId - node) < diff) then
+                                nearest <- node
+                                diff <- abs (taskInfo.ToNodeId - node)
+                    else
+                        for node in leafSetLarger do
+                            if (abs (taskInfo.ToNodeId - node) < diff) then
+                                nearest <- node
+                                diff <- abs (taskInfo.ToNodeId - node)
+
+                    if (abs (taskInfo.ToNodeId - id) > diff) then
+                        let nodeName = "/user/PastryNode" + (nearest |> string)
+                        (select nodeName system) <! MessageType.JoinTask nextTaskInfo
+                    else
+                        sendUpdateNeighborMessage()
+                else if (leafSetSmaller.Count > 0 && leafSetSmaller.Count < baseVal && taskInfo.ToNodeId < (leafSetSmaller |> Seq.min)) then
+                    let nodeName = "/user/PastryNode" + ((leafSetSmaller |> Seq.min) |> string)
+                    (select nodeName system) <! MessageType.JoinTask nextTaskInfo
+                else if (leafSetLarger.Count > 0 && leafSetLarger.Count < baseVal && taskInfo.ToNodeId > (leafSetLarger |> Seq.max)) then
+                    let nodeName = "/user/PastryNode" + ((leafSetLarger |> Seq.max) |> string)
+                    (select nodeName system) <! MessageType.JoinTask nextTaskInfo
+                else if ((leafSetSmaller.Count = 0 && taskInfo.ToNodeId < id) || (leafSetLarger.Count = 0 && taskInfo.ToNodeId > id)) then
+                    sendUpdateNeighborMessage()
+                else if (routingTable.[nonMatchingIndex, (toIdInBaseVal.[nonMatchingIndex] |> string |> int)] <> -1) then
+                    let nodeName = "/user/PastryNode" + ((routingTable.[nonMatchingIndex, (toIdInBaseVal.[nonMatchingIndex] |> string |> int)]) |> string)
+                    (select nodeName system) <! MessageType.JoinTask nextTaskInfo
+                else if (taskInfo.ToNodeId > id) then
+                    let nodeName = "/user/PastryNode" + ((leafSetLarger |> Seq.max) |> string)
+                    (select nodeName system) <! MessageType.JoinTask nextTaskInfo
+                else if (taskInfo.ToNodeId < id) then
+                    let nodeName = "/user/PastryNode" + ((leafSetSmaller |> Seq.min) |> string)
+                    (select nodeName system) <! MessageType.JoinTask nextTaskInfo
+                else ()
             | MessageType.RouteTask taskInfo -> 
                 printfn "%A" taskInfo
             | MessageType.UpdateRow rowInfo -> 

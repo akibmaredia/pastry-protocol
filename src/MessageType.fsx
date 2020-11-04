@@ -26,10 +26,18 @@ module MessageType =
     }
 
     type Task = {
-        Message: string;
         FromNodeId: int;
         ToNodeId: int;
         HopCount: int;
+    }
+
+    type RowInfo = {
+        RowIndex: int;
+        RowData: List<int>;
+    }
+
+    type NeighborInfo = {
+        NodeIdList: List<int>;
     }
 
     type MessageType = 
@@ -42,5 +50,9 @@ module MessageType =
         | RouteNodeNotFound
         | InitPastryNode of InitPastryNode
         | AddFirstNode of AddFirstNode
-        | Task of Task
+        | JoinTask of Task
+        | RouteTask of Task
+        | UpdateRow of RowInfo
+        | UpdateNeighborSet of NeighborInfo
+        | SendAckToSupervisor
         

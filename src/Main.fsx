@@ -11,11 +11,14 @@ open Akka.Actor
 
 open System
 open System.Collections.Generic
+open System.Threading
 
 let isValidInput (numberOfNodes, numberOfRequests) =
     (numberOfNodes > 0) && (numberOfRequests > 0)
 
 let system = ActorSystem.Create "System"
+
+let mutable supervisor = null
 
 let baseVal = 4
 
@@ -29,6 +32,9 @@ let PastryNode (mailbox: Actor<_>) =
     let leafSetLarger = new List<int>()
     
     let mutable routingTable = Array2D.zeroCreate<int> 1 1
+
+    let mutable backCount: int = 0
+    let mutable idSpace: int = 0
 
     let initRoutingTable() = 
         let initRow (row: int) = 
@@ -64,10 +70,10 @@ let PastryNode (mailbox: Actor<_>) =
 
     let getFirstNonMatchingIndex(s1: string, s2: string) = 
         let len = String.length s1
-        let mutable i = 0
-        while i < len && s1.[i] = s2.[i] do
-            i <- i + 1
-        i
+        let mutable index = 0
+        while index < len && s1.[index] = s2.[index] do
+            index <- index + 1
+        index
 
     let updateSamePrefixTableEntries(idInBaseVal: string, nodes: List<int>) = 
         for i in nodes do
@@ -85,6 +91,7 @@ let PastryNode (mailbox: Actor<_>) =
                 numberOfNodes <- initMessage.NumberOfNodes
                 numberOfRequests <- initMessage.NumberOfRequests
                 maxRows <- initMessage.MaxRows
+                idSpace <- Utils.powOf(baseVal, maxRows) |> int
 
                 initRoutingTable()
             | MessageType.AddFirstNode addFirstNodeMessage -> 
@@ -104,8 +111,59 @@ let PastryNode (mailbox: Actor<_>) =
                 |> ignore
 
                 mailbox.Sender() <! MessageType.JoinFinish
-            | MessageType.Task taskInfo -> 
+            | MessageType.JoinTask taskInfo -> 
                 printfn "%A" taskInfo
+            | MessageType.RouteTask taskInfo -> 
+                printfn "%A" taskInfo
+            | MessageType.UpdateRow rowInfo -> 
+                let updateRoutingTableEntry (row, col, value) = 
+                    if (routingTable.[row, col] = -1) then
+                        routingTable.[row, col] <- value
+                    else ()
+
+                [0 .. baseVal - 1]
+                |> List.iter (fun i ->  updateRoutingTableEntry (rowInfo.RowIndex, i, rowInfo.RowData.[i]))
+                |> ignore
+            | MessageType.UpdateNeighborSet neighborInfo -> 
+                updateLeafSet (neighborInfo.NodeIdList)
+
+                let idInBaseVal = Utils.numToBase(id, maxRows, baseVal)
+                updateSamePrefixTableEntries(idInBaseVal, neighborInfo.NodeIdList)
+
+                for node in leafSetSmaller do 
+                    backCount <- backCount + 1
+                    let nodeName = "/user/PastryNode" + (node |> string)
+                    (select nodeName system) <! MessageType.SendAckToSupervisor
+
+                for node in leafSetLarger do 
+                    backCount <- backCount + 1
+                    let nodeName = "/user/PastryNode" + (node |> string)
+                    (select nodeName system) <! MessageType.SendAckToSupervisor
+                
+                for i in [0 .. (maxRows - 1)] do
+                    for j in [0 .. (baseVal - 1)] do
+                        if (routingTable.[i, j] = -1) then
+                            backCount <- backCount + 1
+                            let nodeName = "/user/PastryNode" + (routingTable.[i, j] |> string)
+                            (select nodeName system) <! MessageType.SendAckToSupervisor
+
+                let idInBaseVal = Utils.numToBase(id, maxRows, baseVal)
+                let col(row: int) = idInBaseVal.[row] |> string |> int
+                [0 .. (maxRows - 1)]
+                |> List.iter(fun row -> routingTable.[row, col(row)] <- id)
+                |> ignore
+            | MessageType.SendAckToSupervisor -> 
+                backCount <- backCount - 1
+                if backCount = 0 then 
+                    supervisor <! MessageType.JoinFinish
+            | MessageType.StartRouting ->
+                Thread.Sleep(1000)
+                let taskInfo: MessageType.Task = {
+                    FromNodeId = id;
+                    ToNodeId = Random().Next(idSpace)
+                    HopCount = -1;
+                }
+                mailbox.Self <! MessageType.RouteTask taskInfo
             | _ -> ()
         
         return! loop()
@@ -200,12 +258,11 @@ let Supervisor (mailbox: Actor<_>) =
                 let nodeName = "/user/PastryNode" + (nodeId |> string)
                 let node = select nodeName system
                 let taskInfo: MessageType.Task = {
-                    Message = "Join";
                     FromNodeId = nodeId;
                     ToNodeId = nodeList.[numberOfNodesJoined];
                     HopCount = -1;
                 }
-                node <! MessageType.Task taskInfo
+                node <! MessageType.JoinTask taskInfo
             | MessageType.StartRouting -> 
                 (select "/user/PastryNode*" system) <! MessageType.StartRouting
             | MessageType.FinishRoute finishRouteMessage -> 
@@ -233,7 +290,7 @@ let main (numberOfNodes, numberOfRequests) =
     if not (isValidInput (numberOfNodes, numberOfRequests)) then
         printfn "Error: Invalid Input"
     else
-        let supervisor = spawn system "Supervisor" Supervisor
+        supervisor <- spawn system "Supervisor" Supervisor
 
         let initMessage: MessageType.InitSupervisor = {
             NumberOfNodes = numberOfNodes;

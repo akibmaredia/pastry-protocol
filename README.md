@@ -9,6 +9,20 @@ The objective of this project is to implement Pastry protocol in F# using actor 
 * Akib Maredia <br>
   UFID: 3885-6489
 
+## Instructions for running the code
+
+* Pastry
+  * Unzip the zipped folder project3.zip
+  * Go to directory using commnand ```cd project3/src```
+  * Run command ```dotnet fsi --langversion:preview Main.fsx <numberOfNodes> <numberOfRequests>```
+  * Both <numberOfNodes> and <numberOfRequests> should be integers else the program will exit with inavalid input
+
+* Pastry Bonus
+  * Unzip the zipped folder project3Bonus.zip
+  * Go to directory using command ```cd project3Bonus/src```
+  * Run the command ```dotnet fsi --langversion:preview Main.fsx <numberOfNodes> <numberOfRequests> <numberOfFailed>```
+  * <numberOfNodes>, <numberOfRequests> and <numberOfFailureNodes> should be integers else the program will exit with invalid input error.
+
 # What is working
 
 * Implemented the Pastry API which works for routing messages over peer to peer network according to the pastry paper.

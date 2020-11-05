@@ -9,15 +9,12 @@
 
 * Unzip the zipped folder project3Bonus.zip 
 * ```cd project3Bonus/src```
-* Run the command ```dotnet fsi --langversion:preview Main.fsx <numberOfNodes> <numberOfRequests> <numberOfFailed>```
-* <numberOfNode>, <numberOfRequests> and <numberOfFailed> should be integers else the program will exit with invalid input error.
+* Run the command ```dotnet fsi --langversion:preview Bonus.fsx <numberOfNodes> <numberOfRequests> <numberOfFailureNodes>```
 
 # Implementation
 
-* This part of the project was implemented such that when the nodes join the network, either `numberOfFailed` number of nodes will fail or by default 1% of the total nodes will fail
-* These failure nodes are selected at random and when selected they send a message to all their neighbors in the table that they are failing.
-* The neigboring nodes inform their neighbors that particular node has failed and so on. Eventually the entire network knows about the failed nodes
-* For eg: if we have 1000 nodes and by default 1% of the nodes are failing, we will only have 990 nodes actually functioning
+* When all the nodes finish joining the network, we randomly pick `numberOfFailureNodes` (10% by default if not specified by the user) number of nodes and kill them. These nodes being killed by the Supervisor will in turn notify the nodes belonging to their table with a message that they're failing. The neighbor nodes in response to such message will update their table values. Eventually the entire network knows about the failed nodes.
+* For eg: if we have 1000 nodes and by default 10% of the nodes are failing, we will only have 900 nodes actually functioning.
 * Hence our network size will drop and we will be routing the messages through the reduced network size.
 
 ## Observations
@@ -40,14 +37,14 @@
 |16384| 10  |5.27  | 
 |65536| 10  |6.89  |
 
-### Table 2
+### Table 2 - Bonus
 
 |Number of Nodes   |Number of Failed   |Number of Requests   |Avergage Number of Hops   |
 |:-:  |:-: |:-:|:-:    |
 |16   | 1  |10 | 1.36  |
 |64   | 6  |10 | 2.13  |
 |256  |25  |10 | 3.16  |
-|1024 |102 |10 | 4.39  |
+|1024 |102 |10 | 4.30  |
 |4096 |409 |10 | 5.86  |
 |16384|1638|10 | 6.27  |
 |65536|6553|10 | 8.65  |

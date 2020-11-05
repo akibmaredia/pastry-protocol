@@ -27,7 +27,7 @@
 
 ### Table 1
 
-|Number of NOdes   |Number of requests   |Average number of hops   |
+|Number of Nodes   |Number of requests   |Average number of hops   |
 |:-:  |:-:  |:-:   |
 |16   | 10  |1.23  |
 |64   | 10  |2.11  |

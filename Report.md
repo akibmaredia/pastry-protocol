@@ -5,8 +5,6 @@
 ### Shaishav Shah 1136-3317
 ### Akib Maredia 3885-6489
 
-
-
 ## Instructions for running the code
 
 * Unzip the zipped folder project3Bonus.zip 
@@ -27,19 +25,29 @@
 * It was observed that as the number of nodes fail the average number of hops increases. 
 * The number of hops increases to deliver the message to the destination node.
 * Hence it is clear that the average number of hops is directly proportional to the number of failed nodes. 
-* The 
+* The resilience of the system is about 10% of the total number of nodes in the system. If higher number of nodes are killed chances message delivery decreases significantly and hence it might lead to the system running indefinitely.
 * The first table shows the average number of hops for a network without any failed nodes. The second table shows the average number of hops in a network with failed nodes.
 
-|Number of NOdes   |Number of requests   |Average number of hops   |
-|--:|--:|--:|
-| 16  |   |   |
-| 32  |   |   |
-| 64  |   |   |
+### Table 1
 
-|Number of Nodes   |Number of Requests   |Number of Failed   |Avergage Number of Hops   |
-|:-:|:-:|:-:|:-:|
-|500   |   |   |   |
-|1000   |   |   |   |
-|5000   |   |   |   |
-|10000  |   |   |   |
-|65536
+|Number of NOdes   |Number of requests   |Average number of hops   |
+|:-:  |:-:  |:-:   |
+|16   | 10  |1.23  |
+|64   | 10  |2.11  |
+|256  | 10  |2.88  |
+|1024 | 10  |3.63  | 
+|4096 | 10  |4.48  |
+|16384| 10  |5.27  | 
+|65536| 10  |6.89  |
+
+### Table 2
+
+|Number of Nodes   |Number of Failed   |Number of Requests   |Avergage Number of Hops   |
+|:-:  |:-: |:-:|:-:    |
+|16   | 1  |10 | 1.36  |
+|64   | 6  |10 | 2.13  |
+|256  |25  |10 | 3.16  |
+|1024 |102 |10 | 4.39  |
+|4096 |409 |10 | 5.86  |
+|16384|1638|10 | 6.27  |
+|65536|6553|10 | 8.65  |

@@ -11,7 +11,6 @@ open Akka.Actor
 
 open System
 open System.Collections.Generic
-open System.Threading
 
 let isValidInput (numberOfNodes, numberOfRequests) =
     (numberOfNodes > 0) && (numberOfRequests > 0)
@@ -306,13 +305,12 @@ let PastryNode (mailbox: Actor<_>) =
                     supervisor <! MessageType.JoinFinish
             | MessageType.StartRouting routingInfo -> 
                 for i in [1 .. routingInfo.RequestCount] do
-                    Thread.Sleep(200)
                     let taskInfo: MessageType.Task = {
                         FromNodeId = id;
                         ToNodeId = Random().Next(routingInfo.NodeCount)
                         HopCount = -1;
                     }
-                    mailbox.Self <! MessageType.RouteTask taskInfo
+                    system.Scheduler.ScheduleTellOnce(1000, mailbox.Self, MessageType.RouteTask taskInfo, mailbox.Self)
             | MessageType.Die -> 
                 (select "/user/PastryNode*" system) <! MessageType.RemoveNodeDetails { NodeId = id; }
                 mailbox.Self <! PoisonPill.Instance
@@ -489,8 +487,7 @@ let Supervisor (mailbox: Actor<_>) =
                 for i in [0 .. (numberOfFailureNodes - 1)] do
                     let nodeName = "/user/PastryNode" + (nodeList.[Random().Next(numberOfNodesJoined)] |> string)
                     (select nodeName system) <! MessageType.Die
-                Thread.Sleep(1000)
-                mailbox.Self <! MessageType.StartRoutingSupervisor
+                system.Scheduler.ScheduleTellOnce(1000, mailbox.Self, MessageType.StartRoutingSupervisor, mailbox.Self)
             | MessageType.StartRoutingSupervisor -> 
                 (select "/user/PastryNode*" system) <! MessageType.StartRouting { NodeCount = totalNumberOfNodes; RequestCount = numberOfRequests; }
             | MessageType.FinishRoute finishRouteMessage -> 
@@ -535,7 +532,7 @@ let main (numberOfNodes, numberOfRequests, numberOfFailureNodes) =
 match fsi.CommandLineArgs with
     | [|_; numberOfNodes; numberOfRequests|] -> 
         let numNodes = Utils.strToInt numberOfNodes
-        main (numNodes, (Utils.strToInt numberOfRequests), numNodes / 100)
+        main (numNodes, (Utils.strToInt numberOfRequests), numNodes / 10)
     | [|_; numberOfNodes; numberOfRequests; numberOfNodesToFail|] -> 
         main ((Utils.strToInt numberOfNodes), (Utils.strToInt numberOfRequests), (Utils.strToInt numberOfNodesToFail))
     | _ -> printfn "Error: Invalid Arguments"

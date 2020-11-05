@@ -11,7 +11,6 @@ open Akka.Actor
 
 open System
 open System.Collections.Generic
-open System.Threading
 
 let isValidInput (numberOfNodes, numberOfRequests) =
     (numberOfNodes > 0) && (numberOfRequests > 0)
@@ -281,13 +280,12 @@ let PastryNode (mailbox: Actor<_>) =
                     supervisor <! MessageType.JoinFinish
             | MessageType.StartRouting routingInfo -> 
                 for i in [1 .. routingInfo.RequestCount] do
-                    Thread.Sleep(200)
                     let taskInfo: MessageType.Task = {
                         FromNodeId = id;
                         ToNodeId = Random().Next(idSpace)
                         HopCount = -1;
                     }
-                    mailbox.Self <! MessageType.RouteTask taskInfo
+                    system.Scheduler.ScheduleTellOnce(1000, mailbox.Self, MessageType.RouteTask taskInfo, mailbox.Self)
             | _ -> ()
         
         return! loop()

@@ -100,7 +100,7 @@ let PastryNode (mailbox: Actor<_>) =
 
                 mailbox.Sender() <! MessageType.JoinFinish
             | MessageType.JoinTask taskInfo -> 
-                let sendUpdateRowMessage (index) = 
+                let sendUpdateRowMessage (index) =
                     let rowInfo: MessageType.RowInfo = {
                         RowIndex = index;
                         RowData = new List<int>(routingTable.[index, *]);
@@ -317,40 +317,42 @@ let PastryNode (mailbox: Actor<_>) =
                 (select "/user/PastryNode*" system) <! MessageType.RemoveNodeDetails { NodeId = id; }
                 mailbox.Self <! PoisonPill.Instance
             | MessageType.RemoveNodeDetails nodeToRemove -> 
-                if (nodeToRemove.NodeId > id && leafSetLarger.Contains(nodeToRemove.NodeId)) then
-                    leafSetLarger.Remove(nodeToRemove.NodeId) |> ignore
-                    if leafSetLarger.Count > 0 then
-                        let nodeName = "/user/PastryNode" + ((leafSetLarger |> Seq.max) |> string)
-                        (select nodeName system) <! MessageType.RemoveNodeDetails2 { NodeId = id; }
+                if id <> nodeToRemove.NodeId then
+                    if (nodeToRemove.NodeId > id && leafSetLarger.Contains(nodeToRemove.NodeId)) then
+                        leafSetLarger.Remove(nodeToRemove.NodeId) |> ignore
+                        if leafSetLarger.Count > 0 then
+                            let nodeName = "/user/PastryNode" + ((leafSetLarger |> Seq.max) |> string)
+                            (select nodeName system) <! MessageType.RemoveNodeDetails2 { NodeId = nodeToRemove.NodeId; }
 
-                if (nodeToRemove.NodeId < id && leafSetSmaller.Contains(nodeToRemove.NodeId)) then
-                    leafSetSmaller.Remove(nodeToRemove.NodeId) |> ignore
-                    if leafSetSmaller.Count > 0 then
-                        let nodeName = "/user/PastryNode" + ((leafSetSmaller |> Seq.min) |> string)
-                        (select nodeName system) <! MessageType.RemoveNodeDetails2 { NodeId = id; }
+                    if (nodeToRemove.NodeId < id && leafSetSmaller.Contains(nodeToRemove.NodeId)) then
+                        leafSetSmaller.Remove(nodeToRemove.NodeId) |> ignore
+                        if leafSetSmaller.Count > 0 then
+                            let nodeName = "/user/PastryNode" + ((leafSetSmaller |> Seq.min) |> string)
+                            (select nodeName system) <! MessageType.RemoveNodeDetails2 { NodeId = nodeToRemove.NodeId; }
 
-                let idInBaseVal = Utils.numToBase(id, maxRows, baseVal)
-                let removeIdInBaseVal = Utils.numToBase(nodeToRemove.NodeId, maxRows, baseVal)
-                let nonMatchingIndex = getFirstNonMatchingIndex(idInBaseVal, removeIdInBaseVal)
-                if (routingTable.[nonMatchingIndex, (removeIdInBaseVal.[nonMatchingIndex] |> string |> int)] = nodeToRemove.NodeId) then
-                    routingTable.[nonMatchingIndex, (removeIdInBaseVal.[nonMatchingIndex] |> string |> int)] <- -1
-                    for i in [0 .. (baseVal - 1)] do
-                        if (routingTable.[nonMatchingIndex, i] <> id && 
-                            routingTable.[nonMatchingIndex, i] <> nodeToRemove.NodeId && 
-                            routingTable.[nonMatchingIndex, i] <> -1) then
-                            let nodeName = "/user/PastryNode" + (routingTable.[nonMatchingIndex, i] |> string)
-                            let tableInfo: MessageType.RoutingTableInfo = {
-                                Row = nonMatchingIndex;
-                                Col = (removeIdInBaseVal.[nonMatchingIndex] |> string |> int)
-                                Val = -1
-                            }
-                            (select nodeName system) <! MessageType.CheckRoutingTable tableInfo
+                    let idInBaseVal = Utils.numToBase(id, maxRows, baseVal)
+                    let removeIdInBaseVal = Utils.numToBase(nodeToRemove.NodeId, maxRows, baseVal)
+                    let nonMatchingIndex = getFirstNonMatchingIndex(idInBaseVal, removeIdInBaseVal)
+                    if (routingTable.[nonMatchingIndex, (removeIdInBaseVal.[nonMatchingIndex] |> string |> int)] = nodeToRemove.NodeId) then
+                        routingTable.[nonMatchingIndex, (removeIdInBaseVal.[nonMatchingIndex] |> string |> int)] <- -1
+                        for i in [0 .. (baseVal - 1)] do
+                            if (routingTable.[nonMatchingIndex, i] <> id && 
+                                routingTable.[nonMatchingIndex, i] <> nodeToRemove.NodeId && 
+                                routingTable.[nonMatchingIndex, i] <> -1) then
+                                let nodeName = "/user/PastryNode" + (routingTable.[nonMatchingIndex, i] |> string)
+                                let tableInfo: MessageType.RoutingTableInfo = {
+                                    Row = nonMatchingIndex;
+                                    Col = (removeIdInBaseVal.[nonMatchingIndex] |> string |> int)
+                                    Val = -1
+                                }
+                                (select nodeName system) <! MessageType.CheckRoutingTable tableInfo
+                else ()
             | MessageType.RemoveNodeDetails2 nodeToRemove -> 
                 let tempList = new List<int>()
                 for node in leafSetSmaller do tempList.Add(node)
                 for node in leafSetLarger do tempList.Add(node)
                 tempList.Remove(nodeToRemove.NodeId) |> ignore
-                mailbox.Sender() <! MessageType.RecoverLeafNodes { NodeList = tempList; DeadNodeId = nodeToRemove.NodeId; }
+                mailbox.Sender() <! MessageType.RecoverLeafNodes { NodeList = new List<int>(tempList); DeadNodeId = nodeToRemove.NodeId; }
             | MessageType.RecoverLeafNodes recoverLeafInfo -> 
                 for node in recoverLeafInfo.NodeList do
                     if leafSetLarger.Contains(recoverLeafInfo.DeadNodeId) then 
@@ -490,7 +492,6 @@ let Supervisor (mailbox: Actor<_>) =
                 Thread.Sleep(1000)
                 mailbox.Self <! MessageType.StartRoutingSupervisor
             | MessageType.StartRoutingSupervisor -> 
-                printfn "Start routing!"
                 (select "/user/PastryNode*" system) <! MessageType.StartRouting { NodeCount = totalNumberOfNodes; RequestCount = numberOfRequests; }
             | MessageType.FinishRoute finishRouteMessage -> 
                 numberOfNodesRouted <- numberOfNodesRouted + 1
